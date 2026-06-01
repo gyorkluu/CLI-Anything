@@ -6,7 +6,7 @@ import unittest
 
 
 HARNESS_DIR = os.path.join(os.path.dirname(__file__), '..', '..', '..')
-CLI_MODULE = os.path.join(HARNESS_DIR, 'cli_anything', 'baota', 'baota_cli.py')
+CLI_MODULE = '-m cli_anything.baota.baota_cli'
 
 
 def _resolve_cli(name):
@@ -14,9 +14,7 @@ def _resolve_cli(name):
         result = subprocess.run(['which', name], capture_output=True, text=True)
         if result.returncode == 0:
             return result.stdout.strip()
-    if os.path.exists(CLI_MODULE):
-        return sys.executable + ' ' + CLI_MODULE
-    return name
+    return sys.executable + ' ' + CLI_MODULE
 
 
 class TestCLISubprocess(unittest.TestCase):

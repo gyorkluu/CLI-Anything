@@ -9,7 +9,25 @@ PANEL_PYTHON = '/www/server/panel/pyenv/bin/python3'
 BRIDGE_SCRIPT = '/tmp/baota_bridge.py'
 
 
+BRIDGE_MODULE = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'bridge.py')
+
+
+def _ensure_bridge():
+    if not os.path.exists(BRIDGE_SCRIPT):
+        if os.path.exists(BRIDGE_MODULE):
+            import shutil
+            os.makedirs(os.path.dirname(BRIDGE_SCRIPT), exist_ok=True)
+            shutil.copy2(BRIDGE_MODULE, BRIDGE_SCRIPT)
+            os.chmod(BRIDGE_SCRIPT, 0o644)
+        else:
+            raise RuntimeError(
+                f'Bridge script not found at {BRIDGE_MODULE}. '
+                'Ensure cli-anything-baota is properly installed.'
+            )
+
+
 def call_bridge(operation, timeout=30, **kwargs):
+    _ensure_bridge()
     args_json = json.dumps(kwargs)
     result = subprocess.run(
         ['sudo', PANEL_PYTHON, BRIDGE_SCRIPT, operation, args_json],
@@ -80,5 +98,7 @@ def format_output(data, use_json=False, title=None):
                 return output_json(parsed)
             except json.JSONDecodeError:
                 return output_json({'raw': data})
+        if isinstance(data, dict) and 'status' in data:
+            return output_json(data, status=data['status'])
         return output_json(data)
     return output_text(data, title)

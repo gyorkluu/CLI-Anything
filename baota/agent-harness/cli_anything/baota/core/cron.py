@@ -21,9 +21,13 @@ def get_cron_task(task_id, use_json=False):
 def add_cron_task(name, type_, time_config, echo_command='', use_json=False):
     try:
         parts = time_config.split()
-        where_minute = int(parts[0]) if len(parts) > 0 else 0
-        where_hour = int(parts[1]) if len(parts) > 1 else 3
-        where1 = int(parts[2]) if len(parts) > 2 else 1
+        def _cron_int(val, default):
+            if val == '*':
+                return default
+            return int(val)
+        where_minute = _cron_int(parts[0], 0) if len(parts) > 0 else 0
+        where_hour = _cron_int(parts[1], 3) if len(parts) > 1 else 3
+        where1 = _cron_int(parts[2], 1) if len(parts) > 2 else 1
         result = call_bridge('add_cron', name=name, type=type_,
                              where_minute=where_minute, where_hour=where_hour,
                              where1=where1, echo_command=echo_command)
