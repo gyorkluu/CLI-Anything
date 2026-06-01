@@ -1,7 +1,7 @@
 import sys
 import click
 
-from .core import project, session, database, files, config as config_module, export, cron as cron_module, bt as bt_module
+from .core import project, session, database, files as files_module, config as config_module, export as export_module, cron as cron_module, bt as bt_module
 from .utils.helpers import format_output
 
 
@@ -185,14 +185,14 @@ def files(ctx):
 @click.argument('path')
 @click.pass_context
 def files_list(ctx, path):
-    click.echo(files.list_files(path, ctx.obj['use_json']))
+    click.echo(files_module.list_files(path, ctx.obj['use_json']))
 
 
 @files.command('read')
 @click.argument('path')
 @click.pass_context
 def files_read(ctx, path):
-    click.echo(files.get_file_body(path, ctx.obj['use_json']))
+    click.echo(files_module.get_file_body(path, ctx.obj['use_json']))
 
 
 @files.command('write')
@@ -201,21 +201,21 @@ def files_read(ctx, path):
 @click.option('--encoding', default='utf-8')
 @click.pass_context
 def files_write(ctx, path, content, encoding):
-    click.echo(files.set_file_body(path, content, encoding, ctx.obj['use_json']))
+    click.echo(files_module.set_file_body(path, content, encoding, ctx.obj['use_json']))
 
 
 @files.command('mkdir')
 @click.argument('path')
 @click.pass_context
 def files_mkdir(ctx, path):
-    click.echo(files.create_dir(path, ctx.obj['use_json']))
+    click.echo(files_module.create_dir(path, ctx.obj['use_json']))
 
 
 @files.command('delete')
 @click.argument('path')
 @click.pass_context
 def files_delete(ctx, path):
-    click.echo(files.delete_path(path, ctx.obj['use_json']))
+    click.echo(files_module.delete_path(path, ctx.obj['use_json']))
 
 
 @cli.group()
@@ -273,7 +273,12 @@ def dns(ctx):
 @click.option('--token', 'api_token', help='API Token / AccessKeySecret / APIKey')
 @click.pass_context
 def dns_set(ctx, provider, api_id, api_token):
-    click.echo(config_module.set_dns_api(provider, ctx.obj['use_json'], **{'id': api_id, 'token': api_token}))
+    field_map = {
+        'dnspod': {'ID': api_id, 'Token': api_token},
+        'aliyun': {'AccessKeyId': api_id, 'AccessKeySecret': api_token},
+        'cloudflare': {'Email': api_id, 'APIKey': api_token},
+    }
+    click.echo(config_module.set_dns_api(provider, ctx.obj['use_json'], **field_map[provider]))
 
 
 @dns.command('list')
@@ -421,15 +426,15 @@ def export(ctx):
 @click.pass_context
 def export_sites(ctx, fmt):
     if fmt == 'csv':
-        click.echo(export.export_sites_csv(ctx.obj['use_json']))
+        click.echo(export_module.export_sites_csv(ctx.obj['use_json']))
     else:
-        click.echo(export.export_sites_json(ctx.obj['use_json']))
+        click.echo(export_module.export_sites_json(ctx.obj['use_json']))
 
 
 @export.command('report')
 @click.pass_context
 def export_report(ctx):
-    click.echo(export.generate_report(ctx.obj['use_json']))
+    click.echo(export_module.generate_report(ctx.obj['use_json']))
 
 
 @cli.group()

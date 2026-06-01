@@ -13,13 +13,9 @@ def _resolve_cli(name):
     if os.environ.get('CLI_ANYTHING_FORCE_INSTALLED') == '1':
         result = subprocess.run(['which', name], capture_output=True, text=True)
         if result.returncode == 0:
-            cmd = result.stdout.strip()
-            print(f'[_resolve_cli] Using installed command: {cmd}')
-            return cmd
+            return result.stdout.strip()
     if os.path.exists(CLI_MODULE):
-        print(f'[_resolve_cli] Using module: {sys.executable} {CLI_MODULE}')
         return sys.executable + ' ' + CLI_MODULE
-    print(f'[_resolve_cli] Using name: {name}')
     return name
 
 
