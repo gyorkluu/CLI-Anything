@@ -67,9 +67,10 @@ def set_dns_api(provider, use_json=False, **kwargs):
         prov = DNS_PROVIDERS.get(provider)
         if not prov:
             return format_output({'status': False, 'msg': f'Unsupported provider: {provider}'}, use_json)
+        lookup = {k.lower(): v for k, v in kwargs.items() if v}
         pdata = {}
         for f in prov['fields']:
-            val = kwargs.get(f.lower())
+            val = lookup.get(f.lower()) or kwargs.get(f)
             if not val:
                 env_var = prov['env_map'].get(f, '')
                 val = os.environ.get(env_var, '')
@@ -105,6 +106,8 @@ def add_dns_record(domain, subdomain, record_type, value, ttl=600, use_json=Fals
 def list_dns_records(domain, use_json=False):
     try:
         data = call_bridge('list_dns_records', domain=domain)
+        if isinstance(data, dict) and data.get('status') is False:
+            return format_output(data, use_json, f'DNS Records for {domain}')
         records = data if isinstance(data, list) else []
         return format_output(records, use_json, f'DNS Records for {domain}')
     except Exception as e:

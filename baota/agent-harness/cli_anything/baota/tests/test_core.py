@@ -374,6 +374,43 @@ class TestConfig(unittest.TestCase):
                                value='2001:db8::1', ttl=600)
 
     @patch('cli_anything.baota.core.config.call_bridge')
+    def test_set_dns_api_dnspod_cli_keys(self, mock_bridge):
+        mock_bridge.return_value = {'status': True}
+        result = config_module.set_dns_api('dnspod', use_json=True, ID='myid', Token='mytoken')
+        parsed = json.loads(result)
+        self.assertIn('data', parsed)
+        pdata = mock_bridge.call_args.kwargs['pdata']
+        self.assertEqual(pdata, {'ID': 'myid', 'Token': 'mytoken'})
+
+    @patch('cli_anything.baota.core.config.call_bridge')
+    def test_set_dns_api_aliyun_cli_keys(self, mock_bridge):
+        mock_bridge.return_value = {'status': True}
+        result = config_module.set_dns_api('aliyun', use_json=True,
+                                           AccessKeyId='AKID', AccessKeySecret='SECRET')
+        parsed = json.loads(result)
+        self.assertIn('data', parsed)
+        pdata = mock_bridge.call_args.kwargs['pdata']
+        self.assertEqual(pdata, {'AccessKeyId': 'AKID', 'AccessKeySecret': 'SECRET'})
+
+    @patch('cli_anything.baota.core.config.call_bridge')
+    def test_set_dns_api_cloudflare_cli_keys(self, mock_bridge):
+        mock_bridge.return_value = {'status': True}
+        result = config_module.set_dns_api('cloudflare', use_json=True,
+                                           Email='user@example.org', APIKey='cfkey')
+        parsed = json.loads(result)
+        self.assertIn('data', parsed)
+        pdata = mock_bridge.call_args.kwargs['pdata']
+        self.assertEqual(pdata, {'Email': 'user@example.org', 'APIKey': 'cfkey'})
+
+    @patch('cli_anything.baota.core.config.call_bridge')
+    def test_set_dns_api_no_credentials(self, mock_bridge):
+        with patch.dict('os.environ', {}, clear=True):
+            result = config_module.set_dns_api('dnspod', use_json=True)
+        parsed = json.loads(result)
+        self.assertEqual(parsed['status'], False)
+        self.assertIn('No credentials', parsed['data'].get('msg', ''))
+
+    @patch('cli_anything.baota.core.config.call_bridge')
     def test_add_dns_record_error(self, mock_bridge):
         mock_bridge.side_effect = RuntimeError('fail')
         result = config_module.add_dns_record('x.com', 'a', 'A', '1.2.3.4', use_json=True)
@@ -386,6 +423,14 @@ class TestConfig(unittest.TestCase):
         result = config_module.list_dns_records('example.org', use_json=True)
         parsed = json.loads(result)
         self.assertIn('data', parsed)
+
+    @patch('cli_anything.baota.core.config.call_bridge')
+    def test_list_dns_records_bridge_error(self, mock_bridge):
+        mock_bridge.return_value = {'status': False, 'msg': 'No DNS credentials configured'}
+        result = config_module.list_dns_records('example.org', use_json=True)
+        parsed = json.loads(result)
+        self.assertEqual(parsed['status'], False)
+        self.assertIn('No DNS credentials', parsed['data'].get('msg', ''))
 
     @patch('cli_anything.baota.core.config.call_bridge')
     def test_list_dns_records_error(self, mock_bridge):
