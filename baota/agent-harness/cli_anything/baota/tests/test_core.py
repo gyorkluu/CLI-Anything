@@ -214,11 +214,11 @@ class TestSession(unittest.TestCase):
 
     @patch('cli_anything.baota.core.session.call_bridge')
     def test_get_network_info(self, mock_bridge):
-        mock_bridge.return_value = {'ipv4': '192.168.1.1', 'ipv6': '::1'}
+        mock_bridge.return_value = {'ipv4': '198.51.100.1', 'ipv6': '2001:db8::1'}
         result = session.get_network_info(use_json=True)
         parsed = json.loads(result)
         self.assertIn('data', parsed)
-        self.assertEqual(parsed['data']['ipv6'], '::1')
+        self.assertEqual(parsed['data']['ipv6'], '2001:db8::1')
 
     @patch('cli_anything.baota.core.session.call_bridge')
     def test_get_network_info_error(self, mock_bridge):
@@ -366,12 +366,12 @@ class TestConfig(unittest.TestCase):
     @patch('cli_anything.baota.core.config.call_bridge')
     def test_add_dns_record(self, mock_bridge):
         mock_bridge.return_value = {'status': True, 'id': '123'}
-        result = config_module.add_dns_record('gyork.fun', 'test2', 'AAAA', '::1', use_json=True)
+        result = config_module.add_dns_record('example.org', 'www', 'AAAA', '2001:db8::1', use_json=True)
         parsed = json.loads(result)
         self.assertIn('data', parsed)
-        mock_bridge.assert_called_with('add_dns_record', domain='gyork.fun',
-                                       subdomain='test2', record_type='AAAA',
-                                       value='::1', ttl=600)
+        mock_bridge.assert_called_with('add_dns_record', domain='example.org',
+                               subdomain='www', record_type='AAAA',
+                               value='2001:db8::1', ttl=600)
 
     @patch('cli_anything.baota.core.config.call_bridge')
     def test_add_dns_record_error(self, mock_bridge):
@@ -382,8 +382,8 @@ class TestConfig(unittest.TestCase):
 
     @patch('cli_anything.baota.core.config.call_bridge')
     def test_list_dns_records(self, mock_bridge):
-        mock_bridge.return_value = [{'id': '1', 'name': 'test2.gyork.fun', 'type': 'AAAA'}]
-        result = config_module.list_dns_records('gyork.fun', use_json=True)
+        mock_bridge.return_value = [{'id': '1', 'name': 'test.example.org', 'type': 'AAAA'}]
+        result = config_module.list_dns_records('example.org', use_json=True)
         parsed = json.loads(result)
         self.assertIn('data', parsed)
 
@@ -397,14 +397,14 @@ class TestConfig(unittest.TestCase):
     @patch('cli_anything.baota.core.config.call_bridge')
     def test_delete_dns_record(self, mock_bridge):
         mock_bridge.return_value = {'status': True}
-        result = config_module.delete_dns_record('gyork.fun', '123', use_json=True)
+        result = config_module.delete_dns_record('example.org', '123', use_json=True)
         parsed = json.loads(result)
         self.assertIn('data', parsed)
 
     @patch('cli_anything.baota.core.config.call_bridge')
     def test_delete_dns_record_error(self, mock_bridge):
-        mock_bridge.side_effect = RuntimeError('fail')
-        result = config_module.delete_dns_record('gyork.fun', '999', use_json=True)
+        mock_bridge.return_value = {'status': False}
+        result = config_module.delete_dns_record('example.org', '999', use_json=True)
         parsed = json.loads(result)
         self.assertIn('data', parsed)
 

@@ -249,9 +249,9 @@ cli-anything-baota system firewall-delete 1
 ### DNS record management
 
 ```bash
-cli-anything-baota config dns record add gyork.fun www A 1.2.3.4
-cli-anything-baota config dns record list gyork.fun
-cli-anything-baota config dns record delete gyork.fun 12345
+cli-anything-baota config dns record add example.org www A 198.51.100.1
+cli-anything-baota config dns record list example.org
+cli-anything-baota config dns record delete example.org 12345
 ```
 
 ### Scheduled tasks

@@ -47,8 +47,8 @@ cli-anything-baota config logs --lines 50
 ### DNS record management (via configured provider)
 
 ```bash
-cli-anything-baota config dns record add gyork.fun test2 AAAA ::1
-cli-anything-baota config dns record list gyork.fun
+cli-anything-baota config dns record add example.org www A 198.51.100.1
+cli-anything-baota config dns record list example.org
 cli-anything-baota config dns record delete 123
 ```
 

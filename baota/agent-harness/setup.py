@@ -13,7 +13,7 @@ with open("cli_anything/baota/README.md", "r", encoding="utf-8") as fh:
 setup(
     name="cli-anything-baota",
     version="1.0.0",
-    author="gyorkluu",
+    author="cli-anything-contributors",
     author_email="",
     description="CLI harness for 宝塔面板 (Baota Panel) - Linux server management panel",
     long_description=long_description,
