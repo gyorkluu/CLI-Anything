@@ -369,7 +369,7 @@ class TestConfig(unittest.TestCase):
         result = config_module.add_dns_record('example.org', 'www', 'AAAA', '2001:db8::1', use_json=True)
         parsed = json.loads(result)
         self.assertIn('data', parsed)
-        mock_bridge.assert_called_with('add_dns_record', domain='example.org',
+        mock_bridge.assert_called_with('add_dns_record', domain='example.org', provider=None,
                                subdomain='www', record_type='AAAA',
                                value='2001:db8::1', ttl=600)
 

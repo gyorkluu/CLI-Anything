@@ -93,9 +93,9 @@ def list_dns_api(use_json=False):
         return format_output({'error': str(e)}, use_json)
 
 
-def add_dns_record(domain, subdomain, record_type, value, ttl=600, use_json=False):
+def add_dns_record(domain, subdomain, record_type, value, ttl=600, use_json=False, provider=None):
     try:
-        result = call_bridge('add_dns_record', domain=domain,
+        result = call_bridge('add_dns_record', domain=domain, provider=provider,
                              subdomain=subdomain, record_type=record_type,
                              value=value, ttl=ttl)
         return format_output(result, use_json, 'Add DNS Record')
@@ -103,9 +103,9 @@ def add_dns_record(domain, subdomain, record_type, value, ttl=600, use_json=Fals
         return format_output({'status': False, 'msg': str(e)}, use_json)
 
 
-def list_dns_records(domain, use_json=False):
+def list_dns_records(domain, use_json=False, provider=None):
     try:
-        data = call_bridge('list_dns_records', domain=domain)
+        data = call_bridge('list_dns_records', domain=domain, provider=provider)
         if isinstance(data, dict) and data.get('status') is False:
             return format_output(data, use_json, f'DNS Records for {domain}')
         records = data if isinstance(data, list) else []
@@ -114,9 +114,9 @@ def list_dns_records(domain, use_json=False):
         return format_output({'error': str(e)}, use_json)
 
 
-def delete_dns_record(domain, record_id, use_json=False):
+def delete_dns_record(domain, record_id, use_json=False, provider=None):
     try:
-        result = call_bridge('delete_dns_record', domain=domain, record_id=record_id)
+        result = call_bridge('delete_dns_record', domain=domain, record_id=record_id, provider=provider)
         return format_output(result, use_json, 'Delete DNS Record')
     except Exception as e:
         return format_output({'status': False, 'msg': str(e)}, use_json)

@@ -114,8 +114,25 @@ DNS_PROVIDER_MAP = {
 }
 
 
-def _call_dns_api(action, domain, **kw):
-    name, cred = _get_dns_config()
+PROVIDER_NAME_TO_INTERNAL = {
+    'dnspod': 'DNSPodDns',
+    'aliyun': 'AliyunDns',
+    'cloudflare': 'CloudFlareDns',
+}
+
+
+def _call_dns_api(action, domain, provider_name=None, **kw):
+    name, cred = None, None
+    if provider_name:
+        internal = PROVIDER_NAME_TO_INTERNAL.get(provider_name.lower(), provider_name)
+        import public
+        conf_path = '/www/server/panel/config/dns_mager.conf'
+        dns_config = json.loads(public.readFile(conf_path) or '{}')
+        creds = dns_config.get(internal, [])
+        if creds and len(creds) > 0:
+            name, cred = internal, creds[0]
+    if not name:
+        name, cred = _get_dns_config()
     if not name:
         return {'status': False, 'msg': 'No DNS credentials configured. Use `config dns set` first.'}
     handler = DNS_PROVIDER_MAP.get(name)
@@ -511,7 +528,27 @@ try:
         get.id = site_id
         get.domains = json.dumps(args['domains'])
         get.auth_type = args.get('auth_type', 'dns')
-        get.auth_to = args.get('auth_to', '')
+        auth_to = args.get('auth_to', '')
+        if not auth_to:
+            if get.auth_type == 'dns':
+                conf_path = '/www/server/panel/config/dns_mager.conf'
+                dns_config = json.loads(public.readFile(conf_path) or '{}')
+                for name in ['DNSPodDns', 'AliyunDns', 'CloudFlareDns']:
+                    creds = dns_config.get(name, [])
+                    if creds and len(creds) > 0:
+                        c = creds[0]
+                        if name == 'DNSPodDns':
+                            auth_to = name + '|' + c.get('ID', '') + ',' + c.get('Token', '')
+                        elif name == 'AliyunDns':
+                            auth_to = name + '|' + c.get('AccessKeyId', '') + ',' + c.get('AccessKeySecret', '')
+                        elif name == 'CloudFlareDns':
+                            auth_to = name + '|' + c.get('Email', '') + ',' + c.get('APIKey', '')
+                        break
+                if not auth_to:
+                    auth_to = 'dns'
+            else:
+                auth_to = str(site_id)
+        get.auth_to = auth_to
         get.auto_wildcard = args.get('auto_wildcard', '0')
         if 'ca' in args:
             get.ca = args['ca']
@@ -552,17 +589,18 @@ try:
         print(json.dumps(result, ensure_ascii=False))
 
     elif operation == 'add_dns_record':
-        result = _call_dns_api('add', args.get('domain', ''), subdomain=args.get('subdomain', ''),
-                               type_=args.get('record_type', 'A'), value=args.get('value', ''),
-                               ttl=args.get('ttl', 600))
+        result = _call_dns_api('add', args.get('domain', ''), provider_name=args.get('provider'),
+                               subdomain=args.get('subdomain', ''), type_=args.get('record_type', 'A'),
+                               value=args.get('value', ''), ttl=args.get('ttl', 600))
         print(json.dumps(result, ensure_ascii=False))
 
     elif operation == 'list_dns_records':
-        result = _call_dns_api('list', args.get('domain', ''))
+        result = _call_dns_api('list', args.get('domain', ''), provider_name=args.get('provider'))
         print(json.dumps(result, ensure_ascii=False))
 
     elif operation == 'delete_dns_record':
-        result = _call_dns_api('delete', args.get('domain', ''), record_id=args.get('record_id', ''))
+        result = _call_dns_api('delete', args.get('domain', ''), provider_name=args.get('provider'),
+                               record_id=args.get('record_id', ''))
         print(json.dumps(result, ensure_ascii=False))
 
     elif operation == 'set_site_port':

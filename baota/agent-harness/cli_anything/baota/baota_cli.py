@@ -300,24 +300,30 @@ def record(ctx):
 @click.argument('type_')
 @click.argument('value')
 @click.option('--ttl', default=600, help='DNS TTL in seconds')
+@click.option('--provider', type=click.Choice(['dnspod', 'aliyun', 'cloudflare']),
+              help='DNS provider to use (default: first configured)')
 @click.pass_context
-def dns_record_add(ctx, domain, subdomain, type_, value, ttl):
-    click.echo(config_module.add_dns_record(domain, subdomain, type_, value, ttl, ctx.obj['use_json']))
+def dns_record_add(ctx, domain, subdomain, type_, value, ttl, provider):
+    click.echo(config_module.add_dns_record(domain, subdomain, type_, value, ttl, ctx.obj['use_json'], provider=provider))
 
 
 @record.command('list')
 @click.argument('domain')
+@click.option('--provider', type=click.Choice(['dnspod', 'aliyun', 'cloudflare']),
+              help='DNS provider to use (default: first configured)')
 @click.pass_context
-def dns_record_list(ctx, domain):
-    click.echo(config_module.list_dns_records(domain, ctx.obj['use_json']))
+def dns_record_list(ctx, domain, provider):
+    click.echo(config_module.list_dns_records(domain, ctx.obj['use_json'], provider=provider))
 
 
 @record.command('delete')
 @click.argument('domain')
 @click.argument('record_id')
+@click.option('--provider', type=click.Choice(['dnspod', 'aliyun', 'cloudflare']),
+              help='DNS provider to use (default: first configured)')
 @click.pass_context
-def dns_record_delete(ctx, domain, record_id):
-    click.echo(config_module.delete_dns_record(domain, record_id, ctx.obj['use_json']))
+def dns_record_delete(ctx, domain, record_id, provider):
+    click.echo(config_module.delete_dns_record(domain, record_id, ctx.obj['use_json'], provider=provider))
 
 
 @cli.group()
