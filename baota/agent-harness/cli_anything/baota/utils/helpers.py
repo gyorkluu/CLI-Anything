@@ -13,17 +13,15 @@ BRIDGE_MODULE = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'bridge
 
 
 def _ensure_bridge():
-    if not os.path.exists(BRIDGE_SCRIPT):
-        if os.path.exists(BRIDGE_MODULE):
-            import shutil
-            os.makedirs(os.path.dirname(BRIDGE_SCRIPT), exist_ok=True)
-            shutil.copy2(BRIDGE_MODULE, BRIDGE_SCRIPT)
-            os.chmod(BRIDGE_SCRIPT, 0o644)
-        else:
-            raise RuntimeError(
-                f'Bridge script not found at {BRIDGE_MODULE}. '
-                'Ensure cli-anything-baota is properly installed.'
-            )
+    if not os.path.exists(BRIDGE_MODULE):
+        raise RuntimeError(
+            f'Bridge script not found at {BRIDGE_MODULE}. '
+            'Ensure cli-anything-baota is properly installed.'
+        )
+    import shutil
+    os.makedirs(os.path.dirname(BRIDGE_SCRIPT), exist_ok=True)
+    shutil.copy2(BRIDGE_MODULE, BRIDGE_SCRIPT)
+    os.chmod(BRIDGE_SCRIPT, 0o644)
 
 
 def call_bridge(operation, timeout=30, **kwargs):

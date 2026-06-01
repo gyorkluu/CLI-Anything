@@ -1,5 +1,6 @@
 import sys
 import click
+import shlex
 
 from .core import project, session, database, files as files_module, config as config_module, export as export_module, cron as cron_module, bt as bt_module
 from .utils.helpers import format_output
@@ -542,7 +543,7 @@ def repl(ctx):
             continue
         try:
             old_argv = sys.argv
-            sys.argv = ['cli-anything-baota'] + cmd.split()
+            sys.argv = ['cli-anything-baota'] + shlex.split(cmd)
             try:
                 cli(obj={'use_json': '--json' in sys.argv}, standalone_mode=False)
             except SystemExit:

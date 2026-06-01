@@ -7,6 +7,123 @@ sys.path.insert(0, '/www/server/panel')
 operation = sys.argv[1]
 args = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
 
+import os, re, time, uuid, hashlib, hmac, base64, urllib.parse
+
+
+def _get_dns_config():
+    conf_path = '/www/server/panel/config/dns_mager.conf'
+    import public
+    dns_config = json.loads(public.readFile(conf_path) or '{}')
+    for name in ['DNSPodDns', 'AliyunDns', 'CloudFlareDns']:
+        creds = dns_config.get(name, [])
+        if creds and len(creds) > 0:
+            return name, creds[0]
+    return None, None
+
+
+def _dns_dnspod(action, domain, cred, **kw):
+    import requests as req
+    token = cred.get('ID', '') + ',' + cred.get('Token', '')
+    urls = {'add': 'Record.Create', 'list': 'Record.List', 'delete': 'Record.Remove'}
+    body = {'login_token': token, 'format': 'json', 'domain': domain}
+    if action == 'add':
+        body.update({'sub_domain': kw.get('subdomain', ''), 'record_type': kw.get('type_', 'A'), 'value': kw.get('value', ''), 'record_line_id': '0', 'ttl': kw.get('ttl', 600)})
+    elif action == 'delete':
+        body['record_id'] = kw.get('record_id', '')
+    resp = req.post('https://dnsapi.cn/' + urls[action], data=body, timeout=30).json()
+    if action == 'list':
+        if resp.get('status', {}).get('code') == '1':
+            return [{'id': r['id'], 'name': r['name'], 'type': r['type'], 'value': r['value']} for r in resp.get('records', [])]
+        return []
+    if resp.get('status', {}).get('code') == '1':
+        return {'status': True, 'id': str(resp.get('record', {}).get('id', '')), 'msg': 'success'}
+    return {'status': False, 'msg': resp.get('status', {}).get('message', 'Unknown error')}
+
+
+def _aliyun_sign(params, secret):
+    sorted_keys = sorted(params.keys())
+    query = '&'.join(urllib.parse.quote(str(k), safe='') + '=' + urllib.parse.quote(str(params[k]), safe='') for k in sorted_keys)
+    string_to_sign = 'POST&%2F&' + urllib.parse.quote(query, safe='')
+    return base64.b64encode(hmac.new((secret + '&').encode(), string_to_sign.encode(), hashlib.sha1).digest()).decode()
+
+
+def _dns_aliyun(action, domain, cred, **kw):
+    import requests as req
+    ak_id = cred.get('AccessKeyId', '')
+    ak_secret = cred.get('AccessKeySecret', '')
+    action_map = {'add': 'AddDomainRecord', 'list': 'DescribeDomainRecords', 'delete': 'DeleteDomainRecord'}
+    params = {
+        'Action': action_map[action],
+        'AccessKeyId': ak_id,
+        'Format': 'JSON',
+        'SignatureMethod': 'HMAC-SHA1',
+        'SignatureNonce': str(uuid.uuid4()),
+        'SignatureVersion': '1.0',
+        'Timestamp': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+        'Version': '2015-01-09',
+        'DomainName': domain,
+    }
+    if action == 'add':
+        params.update({'RR': kw.get('subdomain', ''), 'Type': kw.get('type_', 'A'), 'Value': kw.get('value', ''), 'TTL': kw.get('ttl', 600)})
+    elif action == 'delete':
+        params['RecordId'] = kw.get('record_id', '')
+    params['Signature'] = _aliyun_sign(params, ak_secret)
+    resp = req.post('https://alidns.aliyuncs.com/', data=params, timeout=30).json()
+    if action == 'list':
+        records = resp.get('DomainRecords', {}).get('Record', [])
+        return [{'id': r['RecordId'], 'name': r.get('RR', ''), 'type': r['Type'], 'value': r['Value']} for r in records]
+    record_id = resp.get('RecordId', '')
+    if record_id:
+        return {'status': True, 'id': str(record_id), 'msg': 'success'}
+    return {'status': False, 'msg': resp.get('Message', 'Unknown error')}
+
+
+def _dns_cloudflare(action, domain, cred, **kw):
+    import requests as req
+    email = cred.get('Email', '')
+    api_key = cred.get('APIKey', '')
+    headers = {'X-Auth-Email': email, 'X-Auth-Key': api_key, 'Content-Type': 'application/json'}
+    zones = req.get('https://api.cloudflare.com/client/v4/zones?name=' + urllib.parse.quote(domain), headers=headers, timeout=30).json()
+    if not zones.get('success') or not zones.get('result'):
+        return {'status': False, 'msg': 'Domain not found in Cloudflare account'}
+    zone_id = zones['result'][0]['id']
+    if action == 'list':
+        resp = req.get('https://api.cloudflare.com/client/v4/zones/' + zone_id + '/dns_records', headers=headers, timeout=30).json()
+        if resp.get('success'):
+            return [{'id': r['id'], 'name': r['name'], 'type': r['type'], 'value': r['content']} for r in resp.get('result', [])]
+        return []
+    if action == 'add':
+        full_name = kw.get('subdomain', '') + '.' + domain
+        resp = req.post('https://api.cloudflare.com/client/v4/zones/' + zone_id + '/dns_records',
+                        headers=headers, json={'type': kw.get('type_', 'A'), 'name': full_name, 'content': kw.get('value', ''), 'ttl': int(kw.get('ttl', 600))}, timeout=30).json()
+        if resp.get('success') and resp.get('result'):
+            return {'status': True, 'id': resp['result']['id'], 'msg': 'success'}
+        return {'status': False, 'msg': '; '.join(e.get('message', '') for e in resp.get('errors', [])) or 'Unknown error'}
+    if action == 'delete':
+        resp = req.delete('https://api.cloudflare.com/client/v4/zones/' + zone_id + '/dns_records/' + kw.get('record_id', ''),
+                          headers=headers, timeout=30).json()
+        if resp.get('success'):
+            return {'status': True, 'id': kw.get('record_id', ''), 'msg': 'success'}
+        return {'status': False, 'msg': '; '.join(e.get('message', '') for e in resp.get('errors', [])) or 'Unknown error'}
+
+
+DNS_PROVIDER_MAP = {
+    'DNSPodDns': _dns_dnspod,
+    'AliyunDns': _dns_aliyun,
+    'CloudFlareDns': _dns_cloudflare,
+}
+
+
+def _call_dns_api(action, domain, **kw):
+    name, cred = _get_dns_config()
+    if not name:
+        return {'status': False, 'msg': 'No DNS credentials configured. Use `config dns set` first.'}
+    handler = DNS_PROVIDER_MAP.get(name)
+    if not handler:
+        return {'status': False, 'msg': 'Unsupported DNS provider: ' + name}
+    return handler(action, domain, cred, **kw)
+
+
 try:
     if operation == 'list_sites':
         import public
@@ -435,84 +552,18 @@ try:
         print(json.dumps(result, ensure_ascii=False))
 
     elif operation == 'add_dns_record':
-        import public
-        import os
-        import requests as req
-        domain = args.get('domain', '')
-        subdomain = args.get('subdomain', '')
-        record_type = args.get('record_type', 'A')
-        value = args.get('value', '')
-        ttl = args.get('ttl', 600)
-        conf_path = '/www/server/panel/config/dns_mager.conf'
-        dns_config = json.loads(public.readFile(conf_path) or '{}')
-        dnspod_list = dns_config.get('DNSPodDns', [])
-        if not dnspod_list:
-            print(json.dumps({'status': False, 'msg': 'No DNSPod credentials configured'}))
-            sys.exit(0)
-        cred = dnspod_list[0]
-        login_token = cred.get('ID', '') + ',' + cred.get('Token', '')
-        url = 'https://dnsapi.cn/Record.Create'
-        body = {
-            'login_token': login_token,
-            'format': 'json',
-            'domain': domain,
-            'sub_domain': subdomain,
-            'record_type': record_type,
-            'value': value,
-            'record_line_id': '0',
-            'ttl': ttl,
-        }
-        resp = req.post(url, data=body, timeout=30).json()
-        print(json.dumps(resp, ensure_ascii=False))
+        result = _call_dns_api('add', args.get('domain', ''), subdomain=args.get('subdomain', ''),
+                               type_=args.get('record_type', 'A'), value=args.get('value', ''),
+                               ttl=args.get('ttl', 600))
+        print(json.dumps(result, ensure_ascii=False))
 
     elif operation == 'list_dns_records':
-        import public
-        import os
-        import requests as req
-        domain = args.get('domain', '')
-        conf_path = '/www/server/panel/config/dns_mager.conf'
-        dns_config = json.loads(public.readFile(conf_path) or '{}')
-        dnspod_list = dns_config.get('DNSPodDns', [])
-        if not dnspod_list:
-            print(json.dumps([]))
-            sys.exit(0)
-        cred = dnspod_list[0]
-        login_token = cred.get('ID', '') + ',' + cred.get('Token', '')
-        url = 'https://dnsapi.cn/Record.List'
-        body = {
-            'login_token': login_token,
-            'format': 'json',
-            'domain': domain,
-        }
-        resp = req.post(url, data=body, timeout=30).json()
-        records = []
-        if resp.get('status', {}).get('code') == '1':
-            records = [{'id': r['id'], 'name': r['name'], 'type': r['type'], 'value': r['value']} for r in resp.get('records', [])]
-        print(json.dumps(records, ensure_ascii=False))
+        result = _call_dns_api('list', args.get('domain', ''))
+        print(json.dumps(result, ensure_ascii=False))
 
     elif operation == 'delete_dns_record':
-        import public
-        import os
-        import requests as req
-        record_id = args.get('record_id', '')
-        domain = args.get('domain', '')
-        conf_path = '/www/server/panel/config/dns_mager.conf'
-        dns_config = json.loads(public.readFile(conf_path) or '{}')
-        dnspod_list = dns_config.get('DNSPodDns', [])
-        if not dnspod_list:
-            print(json.dumps({'status': False, 'msg': 'No DNSPod credentials configured'}))
-            sys.exit(0)
-        cred = dnspod_list[0]
-        login_token = cred.get('ID', '') + ',' + cred.get('Token', '')
-        url = 'https://dnsapi.cn/Record.Remove'
-        body = {
-            'login_token': login_token,
-            'format': 'json',
-            'domain': domain,
-            'record_id': record_id,
-        }
-        resp = req.post(url, data=body, timeout=30).json()
-        print(json.dumps(resp, ensure_ascii=False))
+        result = _call_dns_api('delete', args.get('domain', ''), record_id=args.get('record_id', ''))
+        print(json.dumps(result, ensure_ascii=False))
 
     elif operation == 'set_site_port':
         import public, re
